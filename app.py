@@ -6,9 +6,24 @@ Serves both backend ML inference and HTML frontend
 import os
 import pickle
 from flask import Flask, render_template, request, jsonify
+from flask_swagger_ui import get_swaggerui_blueprint
 import numpy as np
 
 app = Flask(__name__)
+
+# Swagger UI configuration
+SWAGGER_URL = '/apidocs'
+API_URL = '/swagger.json'
+
+# Create Swagger UI blueprint
+swaggerui_blueprint = get_swaggerui_blueprint(
+    SWAGGER_URL,
+    API_URL,
+    config={
+        'app_name': "Viva Evaluation System API"
+    }
+)
+app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
 
 # Global variable to store the loaded model
 model = None
@@ -102,6 +117,123 @@ def calculate_grade(total_score):
         return "Fail"
 
 
+@app.route('/swagger.json')
+def swagger():
+    """Swagger API specification"""
+    return jsonify({
+        "swagger": "2.0",
+        "info": {
+            "title": "Viva Evaluation System API",
+            "description": "API for predicting total viva scores and grades from individual question scores using machine learning",
+            "version": "1.0.0"
+        },
+        "basePath": "/",
+        "schemes": ["http", "https"],
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "paths": {
+            "/predict": {
+                "post": {
+                    "tags": ["Predictions"],
+                    "summary": "Predict total score and grade",
+                    "description": "Uses machine learning model to predict total score from 5 individual question scores and assigns a grade",
+                    "consumes": ["application/json"],
+                    "produces": ["application/json"],
+                    "parameters": [
+                        {
+                            "in": "body",
+                            "name": "body",
+                            "description": "Question scores for prediction",
+                            "required": True,
+                            "schema": {
+                                "type": "object",
+                                "required": ["q1_score", "q2_score", "q3_score", "q4_score", "q5_score"],
+                                "properties": {
+                                    "q1_score": {
+                                        "type": "number",
+                                        "format": "float",
+                                        "description": "Score for question 1",
+                                        "example": 8.0
+                                    },
+                                    "q2_score": {
+                                        "type": "number",
+                                        "format": "float",
+                                        "description": "Score for question 2",
+                                        "example": 7.0
+                                    },
+                                    "q3_score": {
+                                        "type": "number",
+                                        "format": "float",
+                                        "description": "Score for question 3",
+                                        "example": 9.0
+                                    },
+                                    "q4_score": {
+                                        "type": "number",
+                                        "format": "float",
+                                        "description": "Score for question 4",
+                                        "example": 8.0
+                                    },
+                                    "q5_score": {
+                                        "type": "number",
+                                        "format": "float",
+                                        "description": "Score for question 5",
+                                        "example": 7.0
+                                    }
+                                }
+                            }
+                        }
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "Successful prediction",
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "total_score": {
+                                        "type": "number",
+                                        "format": "float",
+                                        "description": "Predicted total score",
+                                        "example": 39.0
+                                    },
+                                    "grade": {
+                                        "type": "string",
+                                        "description": "Assigned grade (A, B, C, or Fail)",
+                                        "example": "B"
+                                    }
+                                }
+                            }
+                        },
+                        "400": {
+                            "description": "Bad request - invalid or missing input",
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "error": {
+                                        "type": "string",
+                                        "example": "Missing required fields: q1_score, q2_score"
+                                    }
+                                }
+                            }
+                        },
+                        "500": {
+                            "description": "Server error - model not loaded or prediction failed",
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "error": {
+                                        "type": "string",
+                                        "example": "Model not loaded. Please restart the application."
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    })
+
+
 @app.route('/')
 def index():
     """Serve the HTML frontend"""
@@ -111,7 +243,7 @@ def index():
 @app.route('/predict', methods=['POST'])
 def predict():
     """
-    Predict total score from question scores
+    Predict total score and grade from question scores
     
     Expected JSON input:
     {
@@ -203,4 +335,5 @@ if __name__ == '__main__':
     # Run Flask app
     print("Starting Viva Evaluation System...")
     print("Access the application at: http://127.0.0.1:5000")
+    print("Swagger API documentation at: http://127.0.0.1:5000/apidocs")
     app.run(debug=True, host='127.0.0.1', port=5000)
