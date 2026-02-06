@@ -8,6 +8,7 @@ import pickle
 from flask import Flask, render_template, request, jsonify
 from flask_swagger_ui import get_swaggerui_blueprint
 import numpy as np
+import pandas as pd
 
 app = Flask(__name__)
 
@@ -44,7 +45,7 @@ def load_model():
     """Load the trained ML model from pickle file"""
     global model
     
-    model_path = 'viva_predictions.pkl'
+    model_path = 'final_model.pkl'
     
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Model file '{model_path}' not found.")
@@ -297,24 +298,26 @@ def predict():
                 "error": "Model not loaded. Please restart the application."
             }), 500
         
-        # Prepare input for model prediction
-        input_data = np.array([scores]).reshape(1, -1)
+        # final_model.pkl is a Pipeline (ColumnTransformer + RandomForest) that expects
+        # 6 features: q1_score, q2_score, q3_score, q4_score, q5_score, total_score,
+        # and predicts grade. Compute total_score as sum of the 5 question scores.
+        total_score = sum(scores)
+        model_input = pd.DataFrame(
+            [scores + [total_score]],
+            columns=['q1_score', 'q2_score', 'q3_score', 'q4_score', 'q5_score', 'total_score']
+        )
         
-        # Make prediction
         try:
-            total_score = float(model.predict(input_data)[0])
+            grade = model.predict(model_input)[0]
         except Exception as e:
             return jsonify({
                 "error": f"Prediction error: {str(e)}"
             }), 500
         
-        # Calculate grade
-        grade = calculate_grade(total_score)
-        
-        # Return prediction result
+        # Return prediction result (total_score from sum; grade from pipeline)
         return jsonify({
             "total_score": round(total_score, 2),
-            "grade": grade
+            "grade": str(grade)
         })
     
     except Exception as e:
