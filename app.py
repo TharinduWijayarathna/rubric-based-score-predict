@@ -5,6 +5,7 @@ Serves both backend ML inference and HTML frontend
 
 import os
 import pickle
+import warnings
 from flask import Flask, render_template, request, jsonify
 from flask_swagger_ui import get_swaggerui_blueprint
 import numpy as np
@@ -54,7 +55,9 @@ def load_model():
         # Try joblib first (preferred for scikit-learn)
         try:
             import joblib
-            loaded_model = joblib.load(model_path)
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", message="Trying to unpickle estimator")
+                loaded_model = joblib.load(model_path)
             if hasattr(loaded_model, 'predict'):
                 model = loaded_model
                 print(f"✓ Model loaded from {model_path} (joblib)")
