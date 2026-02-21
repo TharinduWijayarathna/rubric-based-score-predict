@@ -43,6 +43,20 @@ python app.py
 
 The application will start on `http://127.0.0.1:5000`
 
+### Docker (Dockploy)
+
+To build and run with Docker (e.g. on [Dockploy](https://dockploy.com)), the app listens on **port 80** and binds to `0.0.0.0`.
+
+```bash
+# Build (ensure final_model.pkl is in the project root for predictions)
+docker build -t rubric-scoring .
+
+# Run (maps host port 80 to container port 80)
+docker run -p 80:80 rubric-scoring
+```
+
+Then open `http://localhost` (or your server’s host). Port is set via `PORT` and host via `HOST`; override with `-e PORT=8080 -e HOST=0.0.0.0` if needed.
+
 ### Using the Web Interface
 
 1. Open your browser and navigate to `http://127.0.0.1:5000`

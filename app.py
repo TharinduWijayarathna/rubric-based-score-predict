@@ -337,9 +337,14 @@ if __name__ == '__main__':
         print(f"✗ Error loading model: {str(e)}")
         print("Application will start but predictions will fail until model is available.")
         model = None
-    
+
+    # Port and host from env (for Docker: PORT=80, HOST=0.0.0.0)
+    port = int(os.environ.get('PORT', 5000))
+    host = os.environ.get('HOST', '127.0.0.1')
+    debug = os.environ.get('FLASK_DEBUG', 'true').lower() == 'true'
+
     # Run Flask app
     print("Starting Viva Evaluation System...")
-    print("Access the application at: http://127.0.0.1:5000")
-    print("Swagger API documentation at: http://127.0.0.1:5000/apidocs")
-    app.run(debug=True, host='127.0.0.1', port=5000)
+    print(f"Access the application at: http://{host}:{port}")
+    print(f"Swagger API documentation at: http://{host}:{port}/apidocs")
+    app.run(debug=debug, host=host, port=port)
