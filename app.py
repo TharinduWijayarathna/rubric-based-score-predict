@@ -42,6 +42,45 @@ class CompatUnpickler(pickle.Unpickler):
         return super().find_class(module, name)
 
 
+def _patch_simple_imputer_fill_dtype(estimator):
+    """
+    Set _fill_dtype on SimpleImputer when missing (sklearn version compatibility).
+    Models pickled with older sklearn lack this attribute; newer sklearn expects it in transform().
+    """
+    try:
+        from sklearn.impute import SimpleImputer
+        from sklearn.pipeline import Pipeline
+        from sklearn.compose import ColumnTransformer
+    except ImportError:
+        return
+    if isinstance(estimator, SimpleImputer):
+        if not hasattr(estimator, '_fill_dtype'):
+            # Infer from strategy: median/mean use float; most_frequent may use object
+            strategy = getattr(estimator, 'strategy', 'mean')
+            if strategy in ('median', 'mean', 'constant'):
+                estimator._fill_dtype = np.float64
+            else:
+                # most_frequent: use statistics_ dtype if fitted, else object
+                stats = getattr(estimator, 'statistics_', None)
+                if stats is not None and hasattr(stats, 'dtype'):
+                    estimator._fill_dtype = stats.dtype
+                else:
+                    estimator._fill_dtype = np.object_
+        return
+    if isinstance(estimator, Pipeline):
+        for _, step in estimator.steps:
+            _patch_simple_imputer_fill_dtype(step)
+        return
+    if isinstance(estimator, ColumnTransformer):
+        for _, trans, _ in estimator.transformers_:
+            _patch_simple_imputer_fill_dtype(trans)
+        return
+    # Single transformer (e.g. pipeline as a step)
+    if hasattr(estimator, 'steps'):
+        for _, step in estimator.steps:
+            _patch_simple_imputer_fill_dtype(step)
+
+
 def load_model():
     """Load the trained ML model from pickle file"""
     global model
@@ -60,19 +99,21 @@ def load_model():
                 loaded_model = joblib.load(model_path)
             if hasattr(loaded_model, 'predict'):
                 model = loaded_model
+                _patch_simple_imputer_fill_dtype(model)
                 print(f"✓ Model loaded from {model_path} (joblib)")
                 return
-        except:
+        except Exception:
             pass
-        
+
         # Try pickle with compatibility fix
         with open(model_path, 'rb') as f:
             unpickler = CompatUnpickler(f)
             loaded_obj = unpickler.load()
-        
+
         # Check if it's a model
         if hasattr(loaded_obj, 'predict'):
             model = loaded_obj
+            _patch_simple_imputer_fill_dtype(model)
             print(f"✓ Model loaded from {model_path} (pickle)")
             return
         
